@@ -18,14 +18,20 @@ class record:
     def __lt__(self, other):
         if type(other) == int:
             return self.index < other
-        if type(other) == record:
+        elif type(other) == record:
             return self.index < other.index
 
     def __gt__(self, other):
         if type(other) == int:
             return self.index > other
-        if type(other) == record:
+        elif type(other) == record:
             return self.index > other.index
+
+    def __eq__(self, other):
+        if type(other) == int:
+            return self.index > other
+        elif type(other) == record:
+            return self.index == other.index
 
 
 class page_index:

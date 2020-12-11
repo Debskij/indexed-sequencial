@@ -46,7 +46,7 @@ class database:
         self.pages = [parse_pages(page) for page in pages]
 
     # TODO search page by bisect
-    def find_page(self, key: int) -> int:
+    def find_page_by_key(self, key: int) -> int:
         i = 0
         while i < len(self.pages) and self.pages[i].index <= key:
             i += 1
@@ -66,7 +66,7 @@ class database:
         which_page_of = self.find_out_page_from_overload(pointer)
         return self.load_page(which_page_of, self.overflow_file)
 
-    def get_record_from_overflow(self, pointer: int) -> record:
+    def load_record_from_overflow(self, pointer: int) -> record:
         return parse_str_to_record(self.load_page_from_overflow(pointer)[pointer % self.block_size])
 
     def load_page_from_main(self, page_no: int) -> list:
