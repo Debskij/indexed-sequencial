@@ -50,7 +50,11 @@ class IS_Database:
                 if new_record > value:
                     value.pointer = previous_record.pointer
                     previous_record.pointer = self.db.save_record_to_overflow(value)
-                    break
+                    self.db.update_record_in_overflow(previous_record, previous_pointer)
+                    return -1
+                if not new_record.pointer:
+                    new_record.pointer = self.db.save_record_to_overflow(value)
+                    self.db.update_record_in_overflow(new_record, previous_record.pointer)
                 previous_pointer, previous_record = previous_record.pointer, new_record
             return -1
 
@@ -82,7 +86,9 @@ class IS_Database:
         possible_page = self.db.load_page_from_main(possible_page_no)
         indexes = [e_record.index for e_record in possible_page if not e_record.is_empty]
         if value.index in indexes:  # index in main area
-            possible_page[indexes.index(value.index)].is_deleted = True
+            idx_in_page = indexes.index(value.index)
+            value.pointer = possible_page[idx_in_page].pointer
+            possible_page[idx_in_page] = value
             self.db.save_page_to_main(possible_page_no, possible_page)
         elif len(indexes) < self.db.block_size:  # index not existing
             return -1
@@ -93,11 +99,15 @@ class IS_Database:
                 pointer_to_traverse = record_from_pointer.pointer
                 record_from_pointer = self.db.load_record_from_overflow(pointer_to_traverse)
             if record_from_pointer == value:
+                value.pointer = record_from_pointer.pointer
                 self.db.update_record_in_overflow(value, pointer_to_traverse)
             else:
                 return -1
         else:
             return -1
+
+    def reorganise(self):
+        pass
 
     def count_empty(self, page: list) -> int:
         return len([record.empty for record in page])
