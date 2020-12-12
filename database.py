@@ -2,6 +2,7 @@ from itertools import islice
 
 from record import *
 
+from math import ceil
 
 def parse_pages(page_str: list) -> page_index:
     return page_index(int(page_str[0]), int(page_str[1]))
@@ -35,7 +36,10 @@ class database:
         self.alpha = page_utilization_factor
         self.limit_of_overflow = limit_of_overflow
         self.records_on_page = records_on_page
-        self.actual_overflow_page = 0
+        self.actual_invalid_records = 0
+        self.actual_main_records = 1
+        self.reorganising_buffer = []
+        self.reorganising_page_no = 0
         self.read_pages()
 
     def create_page_of_records(self, page=None):
@@ -47,6 +51,24 @@ class database:
     def save_page_to_index(self, page: list):
         for page_idx in page:
             self.index_file.write(page_idx.write())
+
+    def save_record_to_main_reorganise(self, value: record):
+        self.reorganising_buffer.append(value)
+        if len(self.reorganising_buffer) >= self.block_size*self.alpha:
+            return self.reorganising_force_write_page
+
+    def reorganising_force_write_page(self) -> page_index:
+        self.reorganising_buffer += [record(0, '') for _ in range(self.block_size - len(self.reorganising_buffer))]
+        self.save_page_to_main(self.reorganising_page_no, self.reorganising_buffer)
+        p_idx = page_index(self.reorganising_buffer[0].index, self.reorganising_page_no)
+        self.reorganising_buffer = []
+        self.reorganising_page_no += 1
+        return p_idx
+
+    def create_enough_empty_pages(self):
+        pages_needed = ceil((self.actual_invalid_records + self.actual_main_records)/(self.block_size*self.alpha))
+        for _ in range(pages_needed):
+            self.main_file.writelines(parse_page_to_str(self.create_page_of_records()))
 
     def erase_file(self, which: str):
         file_dir = {
