@@ -10,7 +10,10 @@ class record:
         self.empty = bool(not idx and re.compile('^0+$').match(self.value) and not pointer)
 
     def write(self):
-        return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{self.pointer.zfill(POINTER_LENGTH)}'
+        if self.pointer:
+            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{self.pointer.zfill(POINTER_LENGTH)}'
+        else:
+            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{self.pointer.rjust(POINTER_LENGTH,"a")}'
 
     def set_pointer(self, pointer: int):
         self.pointer = pointer
