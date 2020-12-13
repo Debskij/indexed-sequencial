@@ -4,6 +4,7 @@ from record import *
 
 from math import ceil
 
+
 def parse_pages(page_str: list) -> page_index:
     return page_index(int(page_str[0]), int(page_str[1]))
 
@@ -39,8 +40,15 @@ class database:
         self.actual_invalid_records = 0
         self.actual_main_records = 1
         self.reorganising_buffer = []
+        self.page_buffer = []
         self.reorganising_page_no = 0
-        self.read_pages()
+
+    def create_guard_record(self, idx: int):
+        guard_record = record(idx, 'guard')
+        self.save_record_to_main_reorganise(guard_record)
+        page_idx = self.reorganising_force_write_page()
+        self.save_page_to_index_reorganise(page_idx)
+        self.save_page_to_index()
 
     def create_page_of_records(self, page=None):
         if page is None:
@@ -48,25 +56,38 @@ class database:
         page = page + [record(0, '') for _ in range(self.block_size - len(page))]
         return page
 
-    def save_page_to_index(self, page: list):
-        for page_idx in page:
-            self.index_file.write(page_idx.write())
+    def save_page_to_index(self):
+        if len(self.page_buffer) > 0:
+            for page_idx in self.page_buffer:
+                self.index_file.write(page_idx.write())
+                self.page_buffer = []
+
+    def save_page_to_index_reorganise(self, page: page_index):
+        self.page_buffer.append(page)
+        if len(self.page_buffer) == self.block_size:
+            self.save_page_to_index()
 
     def save_record_to_main_reorganise(self, value: record):
+        if value.is_deleted:
+            return None
+        value.pointer = None
         self.reorganising_buffer.append(value)
-        if len(self.reorganising_buffer) >= self.block_size*self.alpha:
-            return self.reorganising_force_write_page
+        if len(self.reorganising_buffer) >= self.block_size * self.alpha:
+            return self.reorganising_force_write_page()
 
-    def reorganising_force_write_page(self) -> page_index:
-        self.reorganising_buffer += [record(0, '') for _ in range(self.block_size - len(self.reorganising_buffer))]
-        self.save_page_to_main(self.reorganising_page_no, self.reorganising_buffer)
-        p_idx = page_index(self.reorganising_buffer[0].index, self.reorganising_page_no)
-        self.reorganising_buffer = []
-        self.reorganising_page_no += 1
-        return p_idx
+    def reorganising_force_write_page(self):
+        if len(self.reorganising_buffer) > 0:
+            self.reorganising_buffer += [record(0, '') for _ in range(self.block_size - len(self.reorganising_buffer))]
+            self.save_page_to_main(self.reorganising_page_no, self.reorganising_buffer)
+            p_idx = page_index(self.reorganising_buffer[0].index, self.reorganising_page_no)
+            self.reorganising_buffer = []
+            self.reorganising_page_no += 1
+            return p_idx
+        else:
+            return None
 
     def create_enough_empty_pages(self):
-        pages_needed = ceil((self.actual_invalid_records + self.actual_main_records)/(self.block_size*self.alpha))
+        pages_needed = ceil((self.actual_invalid_records + self.actual_main_records) / (self.block_size * self.alpha))
         for _ in range(pages_needed):
             self.main_file.writelines(parse_page_to_str(self.create_page_of_records()))
 
@@ -74,10 +95,11 @@ class database:
         file_dir = {
             "index": self.index_file,
             "main": self.main_file,
-            "overflow": self.overflow_file
+            "overflow": self.overflow_file,
+            "reorganise": self.main_reorganise_file
         }
         if which in file_dir.keys():
-            file_dir.get(which).truncate()
+            file_dir.get(which).truncate(0)
 
     def swap_mains(self):
         self.main_file, self.main_reorganise_file = self.main_reorganise_file, self.main_file

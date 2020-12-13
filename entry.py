@@ -1,6 +1,10 @@
 from database import database
-from record import record, page_index
+from record import record
 from bisect import bisect
+
+
+def count_empty(page: list) -> int:
+    return len([record.empty for record in page])
 
 
 class IS_Database:
@@ -18,7 +22,7 @@ class IS_Database:
     def add(self, value: record):
         page_no = self.db.find_page_by_key(value.index)
         page = self.db.load_page_from_main(page_no)
-        if self.count_empty(page):
+        if count_empty(page):
             page.append(value)
             page.sort(key=lambda rec: rec.index)
         else:
@@ -115,8 +119,30 @@ class IS_Database:
             return -1
 
     def reorganise(self):
-        pass
-
-
-    def count_empty(self, page: list) -> int:
-        return len([record.empty for record in page])
+        self.db.swap_mains()
+        self.db.erase_file('index')
+        page_no = 0
+        while True:
+            record_page = self.db.load_page_from_main_reorganise(page_no)
+            record_page = [v_record for v_record in record_page if not v_record.empty]
+            if not len(record_page):
+                break
+            idx = 0
+            while idx < len(record_page):
+                page_idx = self.db.save_record_to_main_reorganise(record_page[idx])
+                if page_idx:
+                    self.db.save_page_to_index_reorganise(page_idx)
+                if record_page[idx].pointer:
+                    rc_overflow = self.db.load_record_from_overflow(record_page[idx].pointer)
+                    page_idx = self.db.save_record_to_main_reorganise(rc_overflow)
+                    if page_idx:
+                        self.db.save_page_to_index_reorganise(page_idx)
+                    while rc_overflow.pointer:
+                        rc_overflow = self.db.load_record_from_overflow(rc_overflow.pointer)
+                        page_idx = self.db.save_record_to_main_reorganise(rc_overflow)
+                        if page_idx:
+                            self.db.save_page_to_index_reorganise(page_idx)
+            page_idx = self.db.reorganising_force_write_page()
+            if page_idx:
+                self.db.save_page_to_index_reorganise(page_idx)
+            self.db.save_page_to_index()
