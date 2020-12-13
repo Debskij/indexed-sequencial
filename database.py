@@ -71,8 +71,9 @@ class database:
 
     def create_guard_record(self, idx: int):
         guard_record = record(idx, 'guard')
-        self.save_record_to_main_reorganise(guard_record)
-        page_idx = self.reorganising_force_write_page()
+        page_idx = self.save_record_to_main_reorganise(guard_record)
+        if page_idx is None:
+            page_idx = self.reorganising_force_write_page()
         self.save_page_to_index_reorganise(page_idx)
         self.save_page_to_index()
 
