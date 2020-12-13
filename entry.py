@@ -1,9 +1,9 @@
 import copy
+from bisect import bisect
 
+from consts import INDEX_LENGTH
 from database import database
 from record import record
-from bisect import bisect
-from consts import INDEX_LENGTH
 
 
 def count_empty(page: list) -> int:
@@ -242,7 +242,8 @@ class IS_Database:
                     else:
                         deleted += 1
             main_ptr += 1
-        return [f'PAGE NO. {page_no}. EMPTY PLACES: {empty}. DELETED RECORDS: {deleted}']+[page.write().rstrip('\n') for page in ret_page]
+        return [f'PAGE NO. {page_no}. EMPTY PLACES: {empty}. DELETED RECORDS: {deleted}'] + [page.write().rstrip('\n')
+                                                                                             for page in ret_page]
 
     def view_all_pages(self):
         page_count = self.db.reorganising_page_no

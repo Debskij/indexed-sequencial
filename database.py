@@ -53,7 +53,7 @@ class database:
             "overflow": self.overflow_file,
             "reorganise": self.main_reorganise_file
         }
-
+        self.read_write_counter = 0
         self.block_size = block_size
         self.alpha = page_utilization_factor
         self.pointer_chain = []
@@ -89,6 +89,7 @@ class database:
 
     def save_page_to_index(self):
         if len(self.page_buffer) > 0:
+            self.read_write_counter += 1
             for page_idx in self.page_buffer:
                 self.index_file.write(page_idx.write())
                 self.page_buffer = []
@@ -124,6 +125,7 @@ class database:
     def create_enough_empty_pages(self):
         self.reload_files()
         pages_needed = ceil((self.actual_invalid_records + self.actual_main_records) / (self.block_size * self.alpha))
+        self.read_write_counter += pages_needed
         for _ in range(pages_needed):
             self.main_file.writelines(parse_page_to_str(self.create_page_of_records()))
 
@@ -150,6 +152,7 @@ class database:
 
     def read_pages(self):
         self.reload_files()
+        self.read_write_counter += 1
         pages = [page.rstrip('\n').split('\t') for page in self.index_file.readlines()]
         self.pages = [parse_pages(page) for page in pages]
         self.reload_files()
@@ -159,6 +162,7 @@ class database:
 
     def load_page(self, page_no: int, source) -> list:
         self.reload_files()
+        self.read_write_counter += 1
         try:
             return [line for line in islice(source, page_no * self.block_size, (page_no + 1) * self.block_size)]
         except IndexError:
@@ -166,6 +170,7 @@ class database:
 
     def save_page_to_main(self, page_no: int, page_values: list):
         self.reload_files()
+        self.read_write_counter += 1
         d = self.main_file.readlines()
         page_values = parse_page_to_str(page_values + [record(0, '') for _ in
                                                        range(self.block_size - len(page_values))])
@@ -208,6 +213,7 @@ class database:
         self.update_page_in_overflow(self.find_out_page_from_overload(pointer), page_of)
 
     def update_page_in_overflow(self, page_no: int, page: list):
+        self.read_write_counter += 1
         self.reload_files()
         d = self.overflow_file.readlines()
         d[page_no * self.block_size:(page_no + 1) * self.block_size] = page
@@ -216,6 +222,7 @@ class database:
         self.reload_files()
 
     def save_record_to_overflow(self, value: record):
+        self.read_write_counter += 1
         self.reload_files()
         d = self.overflow_file.readlines()
         self.reload_files()
