@@ -24,13 +24,15 @@ records_testing = [
     (15, 'test'),
     (6, 'test'),
     (8, 'test'),
-    (2, 'test'),
 ]
 for v_record in records_testing:
     r = record(v_record[0], v_record[1])
     program.add(r)
-program.reorganise()
-program.add(record(12, 'test'))
-program.delete(2)
-program.delete(3)
+    program.auto_reorganisation()
+program.update(record(5, 'testtest'))
+# program.reorganise()
+# program.add(record(12, 'test'))
+# program.delete(2)
+# program.delete(3)
+# print(new_database.actual_invalid_records, new_database.actual_main_records)
 # program.reorganise()

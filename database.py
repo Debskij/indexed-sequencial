@@ -107,10 +107,12 @@ class database:
     def reorganising_force_write_page(self):
         if len(self.reorganising_buffer) > 0:
             self.reorganising_buffer += [record(0, '') for _ in range(self.block_size - len(self.reorganising_buffer))]
+            self.reload_files()
             self.save_page_to_main(self.reorganising_page_no, self.reorganising_buffer)
             p_idx = page_index(self.reorganising_buffer[0].index, self.reorganising_page_no)
             self.reorganising_buffer = []
             self.reorganising_page_no += 1
+            self.reload_files()
             return p_idx
         else:
             return None
@@ -133,6 +135,11 @@ class database:
                 file_dir.get(file).truncate(0)
         if which in file_dir.keys():
             file_dir.get(which).truncate(0)
+
+    def check_for_reorganisation(self) -> bool:
+        if self.actual_main_records*self.limit_of_overflow < self.actual_invalid_records:
+            return True
+        return False
 
     def swap_mains(self):
         self.main_file, self.main_reorganise_file = self.main_reorganise_file, self.main_file
@@ -168,6 +175,7 @@ class database:
         return self.load_page(which_page_of, self.overflow_file)
 
     def load_record_from_overflow(self, pointer: int) -> record:
+        loaded_page = parse_file_page_to_records(self.load_page_from_overflow(pointer))
         return parse_str_to_record(self.load_page_from_overflow(pointer)[pointer % self.block_size])
 
     def load_page_from_main(self, page_no: int) -> list:
