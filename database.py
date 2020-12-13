@@ -54,6 +54,8 @@ class database:
 
         self.block_size = block_size
         self.alpha = page_utilization_factor
+        self.pointer_chain = []
+        self.pointer_chain_limit = 0
         self.limit_of_overflow = limit_of_overflow
         self.actual_invalid_records = 0
         self.actual_main_records = 0
@@ -174,9 +176,20 @@ class database:
         which_page_of = self.find_out_page_from_overload(pointer)
         return self.load_page(which_page_of, self.overflow_file)
 
-    def load_record_from_overflow(self, pointer: int) -> record:
+    def load_record_from_overflow(self, pointer: int, max_val: int) -> record:
+        if self.pointer_chain_limit != max_val:
+            self.pointer_chain_limit = max_val
+            self.pointer_chain = []
+        pointer_chain_indices = [x[0] for x in self.pointer_chain]
+        if pointer in pointer_chain_indices:
+            return self.pointer_chain[pointer_chain_indices.index(pointer)][1]
         loaded_page = parse_file_page_to_records(self.load_page_from_overflow(pointer))
-        return parse_str_to_record(self.load_page_from_overflow(pointer)[pointer % self.block_size])
+        seeked_value = loaded_page[pointer % self.block_size]
+        for idx, element in enumerate(loaded_page):
+            if seeked_value < element.index <= max_val:
+                pointer_of_element = (pointer//self.block_size)*self.block_size+idx
+                self.pointer_chain.append((pointer_of_element, copy.deepcopy(element)))
+        return seeked_value
 
     def load_page_from_main(self, page_no: int) -> list:
         return parse_file_page_to_records(self.load_page(page_no, self.main_file))
