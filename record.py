@@ -7,13 +7,13 @@ class record:
         self.value = value
         self.pointer = pointer
         self.is_deleted = False
-        self.empty = bool(not idx and re.compile('^0+$').match(self.value) and not pointer)
+        self.empty = bool(not idx and len(value) == 0 and pointer is None)
 
     def write(self):
-        if self.pointer:
-            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{self.pointer.zfill(POINTER_LENGTH)}'
+        if self.pointer is not None:
+            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{str(self.pointer).zfill(POINTER_LENGTH)}\n'
         else:
-            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{self.pointer.rjust(POINTER_LENGTH,"a")}'
+            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{"".rjust(POINTER_LENGTH,"a")}\n'
 
     def set_pointer(self, pointer: int):
         self.pointer = pointer
@@ -22,13 +22,13 @@ class record:
         if type(other) == int:
             return self.index < other
         elif type(other) == record:
-            return self.index < other.index
+            return self.index < other.index and not self.empty
 
     def __gt__(self, other):
         if type(other) == int:
             return self.index > other
         elif type(other) == record:
-            return self.index > other.index
+            return self.index > other.index or (self.empty and not other.empty)
 
     def __eq__(self, other):
         if type(other) == int:
@@ -43,4 +43,4 @@ class page_index:
         self.page_no = page_no
 
     def write(self):
-        return f'{str(self.index).zfill(INDEX_LENGTH)}\t{str(self.page_no).zfill(MAX_PAGE_LENGTH)}'
+        return f'{str(self.index).zfill(INDEX_LENGTH)}\t{str(self.page_no).zfill(MAX_PAGE_LENGTH)}\n'

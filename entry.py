@@ -4,7 +4,14 @@ from bisect import bisect
 
 
 def count_empty(page: list) -> int:
-    return len([record.empty for record in page])
+    for key, v_rc in enumerate(page):
+        if v_rc.empty:
+            return key
+    return -1
+
+def page_printer(page: list):
+    for rec in page:
+        print(rec.write().rstrip('\n'))
 
 
 class IS_Database:
@@ -20,16 +27,19 @@ class IS_Database:
         }.get(command).__call__(value)
 
     def add(self, value: record):
+        self.db.reload_files()
         page_no = self.db.find_page_by_key(value.index)
         page = self.db.load_page_from_main(page_no)
-        if count_empty(page):
-            page.append(value)
-            page.sort(key=lambda rec: rec.index)
+        self.db.reload_files()
+        empty_idx = count_empty(page)
+        if empty_idx >= 0:
+            page[empty_idx] = value
+            page = sorted(page)
         else:
             idx = 0
             while len(page) > idx + 1 and value.index > page[idx + 1].index:
                 idx += 1
-            if not page[idx].pointer:
+            if page[idx].pointer is None:
                 page[idx].pointer = self.db.save_record_to_overflow(value)
             else:
                 new_pointer = self.put_in_proper_place(page[idx].pointer, value)
@@ -47,8 +57,12 @@ class IS_Database:
         if previous_record > value:
             value.pointer = pointer
             return self.db.save_record_to_overflow(value)
+        elif previous_record.pointer is None:
+            previous_record.pointer = self.db.save_record_to_overflow(value)
+            self.db.update_record_in_overflow(previous_record, previous_pointer)
+            return -1
         else:
-            while previous_record.pointer and previous_record < value:
+            while previous_record.pointer is not None and previous_record < value:
                 new_record = self.db.load_record_from_overflow(previous_record.pointer)
                 if new_record == value:
                     if new_record.is_deleted:

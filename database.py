@@ -1,11 +1,11 @@
 from itertools import islice
+from math import ceil
 
 from record import *
 
-from math import ceil
-
 
 def parse_pages(page_str: list) -> page_index:
+
     return page_index(int(page_str[0]), int(page_str[1]))
 
 
@@ -14,7 +14,7 @@ def parse_page_to_str(pages: list) -> list:
 
 
 def parse_str_to_record(record_str: str) -> record:
-    r = [x.strip() for x in record_str.split(' ')]
+    r = [x.strip() for x in record_str.split('\t')]
     try:
         return record(int(r[0]), r[1], int(r[2]))
     except ValueError:
@@ -28,20 +28,45 @@ def parse_file_page_to_records(records_list: list) -> list:
 class database:
     def __init__(self, page_file_path: str, main_file_path: str, overflow_area_path: str,
                  block_size: int, page_utilization_factor: float, limit_of_overflow: float,
-                 records_on_page: int, reorganise_main_file: str):
+                 reorganise_main_file_path: str):
+        self.paths = {
+            "main": main_file_path,
+            "index": page_file_path,
+            "overflow": overflow_area_path,
+            "reorganise": reorganise_main_file_path
+        }
+
         self.index_file = open(page_file_path, 'r+')
         self.main_file = open(main_file_path, 'r+')
         self.overflow_file = open(overflow_area_path, 'r+')
-        self.main_reorganise_file = open(reorganise_main_file, 'r+')
+        self.main_reorganise_file = open(reorganise_main_file_path, 'r+')
+
+        self.file_names = {
+            "main": self.main_file,
+            "index": self.index_file,
+            "overflow": self.overflow_file,
+            "reorganise": self.main_reorganise_file
+        }
+
         self.block_size = block_size
         self.alpha = page_utilization_factor
         self.limit_of_overflow = limit_of_overflow
-        self.records_on_page = records_on_page
         self.actual_invalid_records = 0
-        self.actual_main_records = 1
+        self.actual_main_records = 0
         self.reorganising_buffer = []
         self.page_buffer = []
         self.reorganising_page_no = 0
+        self.erase_file('all')
+        self.create_guard_record(0)
+        self.reload_files()
+        self.read_pages()
+
+    def db_reloader(self, func):
+        def wrapper():
+            self.reload_files()
+            func()
+            self.reload_files()
+        return wrapper
 
     def create_guard_record(self, idx: int):
         guard_record = record(idx, 'guard')
@@ -49,6 +74,11 @@ class database:
         page_idx = self.reorganising_force_write_page()
         self.save_page_to_index_reorganise(page_idx)
         self.save_page_to_index()
+
+    def reload_files(self, which='all'):
+        for file in self.file_names.values():
+            file.flush()
+            file.seek(0)
 
     def create_page_of_records(self, page=None):
         if page is None:
@@ -72,6 +102,7 @@ class database:
             return None
         value.pointer = None
         self.reorganising_buffer.append(value)
+        self.actual_main_records += 1
         if len(self.reorganising_buffer) >= self.block_size * self.alpha:
             return self.reorganising_force_write_page()
 
@@ -98,6 +129,9 @@ class database:
             "overflow": self.overflow_file,
             "reorganise": self.main_reorganise_file
         }
+        if which == 'all':
+            for file in file_dir.keys():
+                file_dir.get(file).truncate(0)
         if which in file_dir.keys():
             file_dir.get(which).truncate(0)
 
@@ -105,17 +139,19 @@ class database:
         self.main_file, self.main_reorganise_file = self.main_reorganise_file, self.main_file
 
     def read_pages(self):
-        pages = [page.rstrip('\n').split(' ') for page in self.index_file.readlines()]
+        pages = [page.rstrip('\n').split('\t') for page in self.index_file.readlines()]
         self.pages = [parse_pages(page) for page in pages]
+        self.reload_files()
 
     # TODO search page by bisect
     def find_page_by_key(self, key: int) -> int:
         i = 0
         while i < len(self.pages) and self.pages[i].index <= key:
             i += 1
-        return self.pages[i - 1].page_no if i > 0 else -1
+        return self.pages[i - 1].page_no if i > 0 else 0
 
     def load_page(self, page_no: int, source) -> list:
+        self.reload_files()
         try:
             return [line for line in islice(source, page_no * self.block_size, (page_no + 1) * self.block_size)]
         except IndexError:
@@ -123,9 +159,10 @@ class database:
 
     def save_page_to_main(self, page_no: int, page_values: list):
         d = self.main_file.readlines()
-        page_values = parse_page_to_str(page_values) + [record(0, '') for _ in
-                                                        range(self.records_on_page - len(page_values))]
-        d[page_no * self.records_on_page:(page_no + 1) * self.records_on_page] = page_values
+        page_values = parse_page_to_str(page_values + [record(0, '') for _ in
+                                                       range(self.block_size - len(page_values))])
+        self.reload_files()
+        d[page_no * self.block_size:(page_no + 1) * self.block_size] = page_values
         self.main_file.writelines(d)
 
     def load_page_from_overflow(self, pointer: int) -> list:
@@ -150,15 +187,21 @@ class database:
         self.update_page_in_overflow(self.find_out_page_from_overload(pointer), page_of)
 
     def update_page_in_overflow(self, page_no: int, page: list):
+        self.reload_files()
         d = self.overflow_file.readlines()
-        page = [v_record.write() for v_record in page]
+        # page = [v_record.write() for v_record in page]
         d[page_no * self.block_size:(page_no + 1) * self.block_size] = page
+        self.reload_files()
         self.overflow_file.writelines(d)
+        self.reload_files()
 
     def save_record_to_overflow(self, value: record):
+        self.reload_files()
         d = self.overflow_file.readlines()
+        self.reload_files()
         d.append(value.write())
         self.overflow_file.writelines(d)
+        self.reload_files()
         return len(d) - 1
 
     def reload_file(self):
