@@ -1,3 +1,5 @@
+import copy
+
 from database import database
 from record import record
 from bisect import bisect
@@ -200,18 +202,51 @@ class IS_Database:
                 limit = indexes[possible_place + 1]
             new_record_pointer = possible_page[possible_place].pointer
             new_record = self.db.load_record_from_overflow(new_record_pointer, limit)
-            if new_record.index == key:
+            if new_record.index == key and not new_record.is_deleted:
                 return f'OVERFLOW\nPAGE: {new_record_pointer // self.db.block_size}' \
                        f'\nPOSITION: {new_record_pointer - (new_record_pointer // self.db.block_size) * self.db.block_size}' \
                        f'\nINDEX: {key}\nVALUE: {new_record.value}'
             while new_record.pointer is not None and new_record.index < key:
                 new_record_pointer = new_record.pointer
                 new_record = self.db.load_record_from_overflow(new_record_pointer, limit)
-                if new_record.index == key:
+                if new_record.index == key and not new_record.is_deleted:
                     return f'OVERFLOW\nPAGE: {new_record_pointer // self.db.block_size}' \
                            f'\nPOSITION: {new_record_pointer - (new_record_pointer // self.db.block_size) * self.db.block_size}' \
                            f'\nINDEX: {key}\nVALUE: {new_record.value}'
         return f'RECORD WITH KEY: {key} NOT FOUND'
+
+    def view_page(self, page_no: int):
+        page = [x for x in self.db.load_page_from_main(page_no)]
+        empty = len([x for x in page if x.empty])
+        deleted = 0
+        page = [x for x in page if not x.empty]
+        ret_page = []
+        main_ptr = 0
+        while main_ptr < len(page):
+            limit = page[main_ptr + 1] if main_ptr < len(page) - 1 else 10 ** INDEX_LENGTH
+            if not page[main_ptr].is_deleted:
+                if page[main_ptr].index > 0:
+                    ret_page.append(page[main_ptr])
+            else:
+                deleted += 1
+            if page[main_ptr].pointer is not None:
+                next_record = self.db.load_record_from_overflow(page[main_ptr].pointer, limit)
+                if not next_record.is_deleted:
+                    ret_page.append(copy.deepcopy(next_record))
+                else:
+                    deleted += 1
+                while next_record.pointer is not None:
+                    next_record = self.db.load_record_from_overflow(next_record.pointer, limit)
+                    if not next_record.is_deleted:
+                        ret_page.append(copy.deepcopy(next_record))
+                    else:
+                        deleted += 1
+            main_ptr += 1
+        return [f'PAGE NO. {page_no}. EMPTY PLACES: {empty}. DELETED RECORDS: {deleted}']+[page.write().rstrip('\n') for page in ret_page]
+
+    def view_all_pages(self):
+        page_count = self.db.reorganising_page_no
+        return [x for page_no in range(page_count) for x in self.view_page(page_no)]
 
     def auto_reorganisation(self):
         if self.db.check_for_reorganisation():

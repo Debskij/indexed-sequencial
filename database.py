@@ -1,13 +1,15 @@
 import copy
+from bisect import bisect
 from itertools import islice
 from math import ceil
-from bisect import bisect
 
 from record import *
+
 
 def page_printer(page: list):
     for rec in page:
         print(rec.write().rstrip('\n'))
+
 
 def parse_pages(page_str: list) -> page_index:
     return page_index(int(page_str[0]), int(page_str[1]))
@@ -139,7 +141,7 @@ class database:
             file_dir.get(which).truncate(0)
 
     def check_for_reorganisation(self) -> bool:
-        if self.actual_main_records*self.limit_of_overflow < self.actual_invalid_records:
+        if self.actual_main_records * self.limit_of_overflow < self.actual_invalid_records:
             return True
         return False
 
@@ -153,7 +155,7 @@ class database:
         self.reload_files()
 
     def find_page_by_key(self, key: int) -> int:
-        return bisect([x.index for x in self.pages], key)-1
+        return bisect([x.index for x in self.pages], key) - 1
 
     def load_page(self, page_no: int, source) -> list:
         self.reload_files()
@@ -187,7 +189,7 @@ class database:
         seeked_value = loaded_page[pointer % self.block_size]
         for idx, element in enumerate(loaded_page):
             if seeked_value < element.index <= max_val:
-                pointer_of_element = (pointer//self.block_size)*self.block_size+idx
+                pointer_of_element = (pointer // self.block_size) * self.block_size + idx
                 self.pointer_chain.append((pointer_of_element, copy.deepcopy(element)))
         return seeked_value
 

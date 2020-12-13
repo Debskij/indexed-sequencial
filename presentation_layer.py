@@ -30,7 +30,11 @@ for v_record in records_testing:
     program.add(r)
     program.auto_reorganisation()
 program.update(record(5, 'testtest'))
-print(program.search(15))
+program.delete(3)
+program.delete(15)
+page0 = program.view_all_pages()
+for rec in page0:
+    print(rec)
 print(program.search(5))
 print(program.search(9))
 # program.reorganise()
