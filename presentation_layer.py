@@ -18,14 +18,19 @@ new_database = db(page_file_path=paths.get('index'),
 program = is_db(new_database)
 
 records_testing = [
-    (1, 'dupa'),
-    (3, 'dupa'),
-    (5, 'dupa'),
-    (7, 'dupa'),
-    (9, 'dupa'),
-    (11, 'dupa'),
-    (2, 'dupa'),
+    (1, 'test'),
+    (3, 'test'),
+    (5, 'test'),
+    (15, 'test'),
+    (6, 'test'),
+    (8, 'test'),
+    (2, 'test'),
 ]
 for v_record in records_testing:
     r = record(v_record[0], v_record[1])
     program.add(r)
+program.reorganise()
+program.add(record(12, 'test'))
+program.delete(2)
+program.delete(3)
+# program.reorganise()

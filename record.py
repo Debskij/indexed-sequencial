@@ -1,19 +1,18 @@
 from consts import *
-import re
 
 class record:
-    def __init__(self, idx: int, value: str, pointer=None):
+    def __init__(self, idx: int, value: str, pointer=None, is_deleted=0):
         self.index = idx
         self.value = value
         self.pointer = pointer
-        self.is_deleted = False
+        self.is_deleted = is_deleted
         self.empty = bool(not idx and len(value) == 0 and pointer is None)
 
     def write(self):
         if self.pointer is not None:
-            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{str(self.pointer).zfill(POINTER_LENGTH)}\n'
+            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{str(self.pointer).zfill(POINTER_LENGTH)}\t{int(self.is_deleted)}\n'
         else:
-            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{"".rjust(POINTER_LENGTH,"a")}\n'
+            return f'{str(self.index).zfill(INDEX_LENGTH)}\t{self.value.center(MAX_RECORD_LENGTH)}\t{"".rjust(POINTER_LENGTH,"a")}\t{int(self.is_deleted)}\n'
 
     def set_pointer(self, pointer: int):
         self.pointer = pointer

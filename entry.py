@@ -9,6 +9,7 @@ def count_empty(page: list) -> int:
             return key
     return -1
 
+
 def page_printer(page: list):
     for rec in page:
         print(rec.write().rstrip('\n'))
@@ -35,6 +36,7 @@ class IS_Database:
         if empty_idx >= 0:
             page[empty_idx] = value
             page = sorted(page)
+            self.db.actual_main_records += 1
         else:
             idx = 0
             while len(page) > idx + 1 and value.index > page[idx + 1].index:
@@ -86,10 +88,14 @@ class IS_Database:
     def delete(self, key: int):
         possible_page_no = self.db.find_page_by_key(key)
         possible_page = self.db.load_page_from_main(possible_page_no)
-        indexes = [e_record.index for e_record in possible_page if not e_record.is_empty]
+        indexes = [e_record.index for e_record in possible_page if not e_record.empty]
         if key in indexes:  # index in main area
             possible_page[indexes.index(key)].is_deleted = True
+            self.db.actual_main_records -= 1
+            self.db.actual_invalid_records += 1
             self.db.save_page_to_main(possible_page_no, possible_page)
+            self.db.reload_files()
+            return -1
         elif len(indexes) < self.db.block_size:  # index not existing
             return -1
         pointer_to_traverse = possible_page[bisect(indexes, key) - 1].pointer
@@ -133,8 +139,13 @@ class IS_Database:
             return -1
 
     def reorganise(self):
+        self.db.erase_file('reorganise')
         self.db.swap_mains()
         self.db.erase_file('index')
+        self.db.create_enough_empty_pages()
+        self.db.actual_main_records = 0
+        self.db.reload_files()
+        self.db.reorganising_page_no = 0
         page_no = 0
         while True:
             record_page = self.db.load_page_from_main_reorganise(page_no)
@@ -146,17 +157,23 @@ class IS_Database:
                 page_idx = self.db.save_record_to_main_reorganise(record_page[idx])
                 if page_idx:
                     self.db.save_page_to_index_reorganise(page_idx)
-                if record_page[idx].pointer:
+                if record_page[idx].pointer is not None:
                     rc_overflow = self.db.load_record_from_overflow(record_page[idx].pointer)
                     page_idx = self.db.save_record_to_main_reorganise(rc_overflow)
                     if page_idx:
                         self.db.save_page_to_index_reorganise(page_idx)
-                    while rc_overflow.pointer:
+                    while rc_overflow.pointer is not None:
                         rc_overflow = self.db.load_record_from_overflow(rc_overflow.pointer)
                         page_idx = self.db.save_record_to_main_reorganise(rc_overflow)
                         if page_idx:
                             self.db.save_page_to_index_reorganise(page_idx)
+                idx += 1
             page_idx = self.db.reorganising_force_write_page()
+            page_no += 1
             if page_idx:
                 self.db.save_page_to_index_reorganise(page_idx)
+            self.db.erase_file('overflow')
+            self.db.erase_file('reorganise')
+            self.db.actual_invalid_records = 0
+            self.db.read_pages()
             self.db.save_page_to_index()

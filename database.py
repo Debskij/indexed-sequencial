@@ -1,11 +1,15 @@
+import copy
 from itertools import islice
 from math import ceil
+from bisect import bisect
 
 from record import *
 
+def page_printer(page: list):
+    for rec in page:
+        print(rec.write().rstrip('\n'))
 
 def parse_pages(page_str: list) -> page_index:
-
     return page_index(int(page_str[0]), int(page_str[1]))
 
 
@@ -16,9 +20,9 @@ def parse_page_to_str(pages: list) -> list:
 def parse_str_to_record(record_str: str) -> record:
     r = [x.strip() for x in record_str.split('\t')]
     try:
-        return record(int(r[0]), r[1], int(r[2]))
+        return record(int(r[0]), r[1], int(r[2]), is_deleted=int(r[3]))
     except ValueError:
-        return record(int(r[0]), r[1])
+        return record(int(r[0]), r[1], is_deleted=int(r[3]))
 
 
 def parse_file_page_to_records(records_list: list) -> list:
@@ -61,13 +65,6 @@ class database:
         self.reload_files()
         self.read_pages()
 
-    def db_reloader(self, func):
-        def wrapper():
-            self.reload_files()
-            func()
-            self.reload_files()
-        return wrapper
-
     def create_guard_record(self, idx: int):
         guard_record = record(idx, 'guard')
         self.save_record_to_main_reorganise(guard_record)
@@ -75,7 +72,7 @@ class database:
         self.save_page_to_index_reorganise(page_idx)
         self.save_page_to_index()
 
-    def reload_files(self, which='all'):
+    def reload_files(self):
         for file in self.file_names.values():
             file.flush()
             file.seek(0)
@@ -100,8 +97,9 @@ class database:
     def save_record_to_main_reorganise(self, value: record):
         if value.is_deleted:
             return None
-        value.pointer = None
-        self.reorganising_buffer.append(value)
+        copy_of_value = copy.deepcopy(value)
+        copy_of_value.pointer = None
+        self.reorganising_buffer.append(copy_of_value)
         self.actual_main_records += 1
         if len(self.reorganising_buffer) >= self.block_size * self.alpha:
             return self.reorganising_force_write_page()
@@ -118,6 +116,7 @@ class database:
             return None
 
     def create_enough_empty_pages(self):
+        self.reload_files()
         pages_needed = ceil((self.actual_invalid_records + self.actual_main_records) / (self.block_size * self.alpha))
         for _ in range(pages_needed):
             self.main_file.writelines(parse_page_to_str(self.create_page_of_records()))
@@ -139,16 +138,13 @@ class database:
         self.main_file, self.main_reorganise_file = self.main_reorganise_file, self.main_file
 
     def read_pages(self):
+        self.reload_files()
         pages = [page.rstrip('\n').split('\t') for page in self.index_file.readlines()]
         self.pages = [parse_pages(page) for page in pages]
         self.reload_files()
 
-    # TODO search page by bisect
     def find_page_by_key(self, key: int) -> int:
-        i = 0
-        while i < len(self.pages) and self.pages[i].index <= key:
-            i += 1
-        return self.pages[i - 1].page_no if i > 0 else 0
+        return bisect([x.index for x in self.pages], key)-1
 
     def load_page(self, page_no: int, source) -> list:
         self.reload_files()
@@ -158,12 +154,14 @@ class database:
             return []
 
     def save_page_to_main(self, page_no: int, page_values: list):
+        self.reload_files()
         d = self.main_file.readlines()
         page_values = parse_page_to_str(page_values + [record(0, '') for _ in
                                                        range(self.block_size - len(page_values))])
         self.reload_files()
         d[page_no * self.block_size:(page_no + 1) * self.block_size] = page_values
         self.main_file.writelines(d)
+        self.reload_files()
 
     def load_page_from_overflow(self, pointer: int) -> list:
         which_page_of = self.find_out_page_from_overload(pointer)
@@ -189,7 +187,6 @@ class database:
     def update_page_in_overflow(self, page_no: int, page: list):
         self.reload_files()
         d = self.overflow_file.readlines()
-        # page = [v_record.write() for v_record in page]
         d[page_no * self.block_size:(page_no + 1) * self.block_size] = page
         self.reload_files()
         self.overflow_file.writelines(d)
@@ -200,6 +197,7 @@ class database:
         d = self.overflow_file.readlines()
         self.reload_files()
         d.append(value.write())
+        self.actual_invalid_records += 1
         self.overflow_file.writelines(d)
         self.reload_files()
         return len(d) - 1
