@@ -36,8 +36,6 @@ for line in testing:
                 break
             ans = program.commands(command_line[0], record(command_line[1], command_line[2]))
         elif command_line[0] in ['delete', 'search', 'view'] and len(command_line) >= 2:
-            if command_line[:2] == ['view', 'all']:
-                ans = program.commands(''.join(command_line[:2]))
             try:
                 command_line[1] = int(command_line[1])
             except ValueError:
@@ -48,8 +46,8 @@ for line in testing:
             ans = program.commands(command_line[0])
         possible_ans = {
             -2: 'failure!',
-            -1: 'success',
-            0: 'idk',
+            -1: 'success!',
+            0: 'idk!',
         }
         if type(ans) is not list and ans in possible_ans.keys():
             print(f'{command_line[0]} status: {possible_ans.get(ans)}')

@@ -30,7 +30,6 @@ class IS_Database:
             "update": self.update,
             "search": self.search,
             "view": self.view_page,
-            "view_all": self.view_all_pages,
         }.get(command).__call__(value)
 
     def add(self, value: record):
@@ -241,6 +240,8 @@ class IS_Database:
         return f'RECORD WITH KEY: {key} NOT FOUND'
 
     def view_page(self, page_no: int):
+        if page_no > self.db.reorganising_page_no:
+            return -2
         page = [x for x in self.db.load_page_from_main(page_no)]
         empty = len([x for x in page if x.empty])
         deleted = 0
@@ -270,7 +271,7 @@ class IS_Database:
         return [f'PAGE NO. {page_no}. EMPTY PLACES: {empty}. DELETED RECORDS: {deleted}'] + [page.write().rstrip('\n')
                                                                                              for page in ret_page]
 
-    def view_all_pages(self):
+    def view_all_pages(self, *args) -> list:
         page_count = self.db.reorganising_page_no
         return [x for page_no in range(page_count) for x in self.view_page(page_no)]
 
