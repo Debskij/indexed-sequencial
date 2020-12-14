@@ -62,9 +62,11 @@ class database:
         self.actual_invalid_records = 0
         self.actual_main_records = 0
         self.reorganising_buffer = []
+        self.deleted_records = 0
         self.page_buffer = []
         self.reorganising_page_no = 0
         self.erase_file('all')
+        self.overhead = 0
         self.create_guard_record(0)
         self.reload_files()
         self.read_pages()
@@ -90,15 +92,13 @@ class database:
 
     def save_page_to_index(self):
         if len(self.page_buffer) > 0:
-            self.read_write_counter += 1
+            self.read_write_counter += ceil(len(self.page_buffer)/self.block_size)
             for page_idx in self.page_buffer:
                 self.index_file.write(page_idx.write())
                 self.page_buffer = []
 
     def save_page_to_index_reorganise(self, page: page_index):
         self.page_buffer.append(page)
-        if len(self.page_buffer) == self.block_size:
-            self.save_page_to_index()
 
     def save_record_to_main_reorganise(self, value: record):
         if value.is_deleted:
@@ -107,7 +107,8 @@ class database:
         copy_of_value.pointer = None
         self.reorganising_buffer.append(copy_of_value)
         self.actual_main_records += 1
-        if len(self.reorganising_buffer) >= self.block_size * self.alpha:
+        if len(self.reorganising_buffer) >= self.block_size * self.alpha + self.overhead:
+            self.overhead += self.block_size * self.alpha - len(self.reorganising_buffer)
             return self.reorganising_force_write_page()
 
     def reorganising_force_write_page(self):
@@ -144,7 +145,7 @@ class database:
             file_dir.get(which).truncate(0)
 
     def check_for_reorganisation(self) -> bool:
-        if self.actual_main_records * self.limit_of_overflow < self.actual_invalid_records:
+        if self.actual_main_records * self.limit_of_overflow < self.actual_invalid_records + self.deleted_records:
             return True
         return False
 

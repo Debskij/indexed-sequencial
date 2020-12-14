@@ -3,10 +3,10 @@ from entry import IS_Database as isdb
 from record import record
 
 paths = {
-    "main" : 'data/main',
-    "main_reorganise" : 'data/main_reorganise',
-    "index" : 'data/index',
-    "overflow" : 'data/overflow'
+    "main": 'data/main',
+    "main_reorganise": 'data/main_reorganise',
+    "index": 'data/index',
+    "overflow": 'data/overflow'
 }
 
 new_database = db(page_file_path=paths.get('index'),
@@ -15,32 +15,45 @@ new_database = db(page_file_path=paths.get('index'),
                   reorganise_main_file_path=paths.get('main_reorganise'),
                   block_size=4, page_utilization_factor=0.5, limit_of_overflow=0.3)
 
+
+def pretty_printer(big_bad_list: list):
+    for another_wolf in big_bad_list:
+        print(another_wolf)
+
+
 program = isdb(new_database)
 
-records_testing = [
-    (1, 'test'),
-    (3, 'test'),
-    (5, 'test'),
-    (15, 'test'),
-    (6, 'test'),
-    (8, 'test'),
-]
-for v_record in records_testing:
-    r = record(v_record[0], v_record[1])
-    program.add(r)
-    program.auto_reorganisation()
-program.update(record(5, 'testtest'))
-program.delete(3)
-program.delete(15)
-page0 = program.view_all_pages()
-for rec in page0:
-    print(rec)
-print(program.search(5))
-print(program.search(9))
-print(new_database.read_write_counter)
-# program.reorganise()
-# program.add(record(12, 'test'))
-# program.delete(2)
-# program.delete(3)
-# print(new_database.actual_invalid_records, new_database.actual_main_records)
-# program.reorganise()
+testing = open('test-file').readlines()
+for line in testing:
+    command_line = line.rstrip('\n').split(' ')
+    if command_line[0] in ['add', 'update', 'delete', 'search', 'view', 'reorganise']:
+        ans = -3
+        if command_line[0] in ['add', 'update'] and len(command_line) >= 3:
+            try:
+                command_line[1] = int(command_line[1])
+            except ValueError:
+                print(f'Invalid command passed in {line}')
+                break
+            ans = program.commands(command_line[0], record(command_line[1], command_line[2]))
+        elif command_line[0] in ['delete', 'search', 'view'] and len(command_line) >= 2:
+            if command_line[:2] == ['view', 'all']:
+                ans = program.commands(''.join(command_line[:2]))
+            try:
+                command_line[1] = int(command_line[1])
+            except ValueError:
+                print(f'Invalid command passed in {line}')
+                break
+            ans = program.commands(command_line[0], command_line[1])
+        else:
+            ans = program.commands(command_line[0])
+        possible_ans = {
+            -2: 'failure!',
+            -1: 'success',
+            0: 'idk',
+        }
+        if type(ans) is not list and ans in possible_ans.keys():
+            print(f'{command_line[0]} status: {possible_ans.get(ans)}')
+        elif type(ans) is list:
+            pretty_printer(ans)
+        else:
+            print(ans)

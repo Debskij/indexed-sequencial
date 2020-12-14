@@ -29,14 +29,20 @@ class IS_Database:
             "reorganise": self.reorganise,
             "update": self.update,
             "search": self.search,
+            "view": self.view_page,
+            "view_all": self.view_all_pages,
         }.get(command).__call__(value)
 
     def add(self, value: record):
+        if value.index < 1:
+            return -2
         self.db.reload_files()
         page_no = self.db.find_page_by_key(value.index)
         page = self.db.load_page_from_main(page_no)
         self.db.reload_files()
         empty_idx = count_empty(page)
+        if value.index in [x.index for x in page]:
+            return -2
         if empty_idx >= 0:
             page[empty_idx] = value
             page = sorted(page)
@@ -51,15 +57,16 @@ class IS_Database:
                 new_pointer = self.put_in_proper_place(page[idx].pointer, value)
                 if new_pointer >= 0:
                     page[idx].pointer = new_pointer
-                elif new_pointer == -2:
-                    print(f'Record with index {value.index} already exists!')
-                    return
                 else:
-                    return
+                    return new_pointer
         self.db.save_page_to_main(page_no, page)
+        self.auto_reorganisation()
+        return -1
 
     def put_in_proper_place(self, pointer: int, value: record):
         previous_pointer, previous_record = pointer, self.db.load_record_from_overflow(pointer, value.index)
+        if previous_record == value:
+            return -2
         if previous_record > value:
             value.pointer = pointer
             return self.db.save_record_to_overflow(value)
@@ -87,22 +94,27 @@ class IS_Database:
                     self.db.update_record_in_overflow(new_record, previous_record.pointer)
                     return -1
                 previous_pointer, previous_record = previous_record.pointer, new_record
-            return -1
+            return -2
 
     def delete(self, key: int):
+        if key < 1:
+            return -2
         possible_page_no = self.db.find_page_by_key(key)
         possible_page = self.db.load_page_from_main(possible_page_no)
         indexes = [e_record.index for e_record in possible_page if not e_record.empty]
         if key in indexes:  # index in main area
+            if possible_page[indexes.index(key)].is_deleted:
+                return -2
             possible_page[indexes.index(key)].is_deleted = True
+            self.db.deleted_records += 1
             self.db.actual_main_records -= 1
             self.db.save_page_to_main(possible_page_no, possible_page)
             self.db.reload_files()
             return -1
         elif len(indexes) < self.db.block_size:  # index not existing
-            return -1
+            return -2
         pointer_to_traverse = possible_page[bisect(indexes, key) - 1].pointer
-        if pointer_to_traverse:
+        if pointer_to_traverse is not None:
             record_from_pointer = self.db.load_record_from_overflow(pointer_to_traverse, key)
             while record_from_pointer.pointer is not None and record_from_pointer < key:
                 pointer_to_traverse = record_from_pointer.pointer
@@ -110,22 +122,29 @@ class IS_Database:
             if record_from_pointer.index == key:
                 record_from_pointer.is_deleted = True
                 self.db.actual_invalid_records -= 1
+                self.db.deleted_records += 1
                 self.db.update_record_in_overflow(record_from_pointer, pointer_to_traverse)
-            else:
                 return -1
+            else:
+                return -2
         else:
-            return -1
+            return -2
 
     def update(self, value: record):
+        if value.index < 1:
+            return -2
         possible_page_no = self.db.find_page_by_key(value.index)
         possible_page = self.db.load_page_from_main(possible_page_no)
         indexes = [e_record.index for e_record in possible_page if not e_record.empty]
         if value.index in indexes:  # index in main area
             idx_in_page = indexes.index(value.index)
             if not possible_page[idx_in_page].is_deleted:
-                value.pointer = possible_page[idx_in_page].pointer
+                value.pointer = copy.deepcopy(possible_page[idx_in_page].pointer)
                 possible_page[idx_in_page] = value
                 self.db.save_page_to_main(possible_page_no, possible_page)
+                return -1
+            else:
+                return -2
         elif len(indexes) < self.db.block_size:  # index not existing
             return -1
         pointer_to_traverse = possible_page[bisect(indexes, value.index) - 1].pointer
@@ -138,13 +157,15 @@ class IS_Database:
                 value.pointer = record_from_pointer.pointer
                 self.db.update_record_in_overflow(value, pointer_to_traverse)
             else:
-                return -1
+                return -2
         else:
-            return -1
+            return -2
 
-    def reorganise(self):
+    def reorganise(self, *args):
         self.db.erase_file('reorganise')
         self.db.swap_mains()
+        self.db.overhead = 0
+        self.db.deleted_records = 0
         self.db.erase_file('index')
         self.db.create_enough_empty_pages()
         number_of_pages = int(self.db.reorganising_page_no)
@@ -158,7 +179,7 @@ class IS_Database:
             idx = 0
             while idx < len(record_page):
                 page_idx = self.db.save_record_to_main_reorganise(record_page[idx])
-                limit = record_page[idx + 1] if idx < len(record_page) - 1 else 10 ** INDEX_LENGTH
+                limit = record_page[idx + 1].index if idx < len(record_page) - 1 else 10 ** INDEX_LENGTH
                 if page_idx:
                     self.db.save_page_to_index_reorganise(page_idx)
                 if record_page[idx].pointer is not None:
@@ -176,14 +197,18 @@ class IS_Database:
         page_idx = self.db.reorganising_force_write_page()
         if page_idx:
             self.db.save_page_to_index_reorganise(page_idx)
+        self.db.overhead = 0
         self.db.erase_file('overflow')
         self.db.erase_file('reorganise')
         self.db.actual_invalid_records = 0
         self.db.reload_files()
         self.db.save_page_to_index()
         self.db.read_pages()
+        return -1
 
     def search(self, key: int):
+        if type(key) != int or key < 1:
+            return "Invalid value!"
         possible_page_no = self.db.find_page_by_key(key)
         possible_page = self.db.load_page_from_main(possible_page_no)
         indexes = [e_record.index for e_record in possible_page if not e_record.empty]
@@ -192,7 +217,7 @@ class IS_Database:
             location = indexes.index(key)
             right_value = possible_page[location]
             if right_value.is_deleted:
-                return None
+                return f'RECORD WITH KEY: {key} NOT FOUND'
             return f'MAIN\nPAGE: {possible_page_no}\nPOSITION: {location}\nINDEX: {key}\n' \
                    f'VALUE: {right_value.value}\n'
         elif possible_page[possible_place].pointer is not None:
