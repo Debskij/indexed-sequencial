@@ -92,10 +92,12 @@ class database:
 
     def save_page_to_index(self):
         if len(self.page_buffer) > 0:
-            self.read_write_counter += ceil(len(self.page_buffer)/self.block_size)
-            for page_idx in self.page_buffer:
-                self.index_file.write(page_idx.write())
-                self.page_buffer = []
+            splitted_pages = [self.page_buffer[i:i+self.block_size] for i in range(0, len(self.page_buffer), self.block_size)]
+            for page in splitted_pages:
+                self.read_write_counter += 1
+                for page_idx in page:
+                    self.index_file.write(page_idx.write())
+            self.page_buffer = []
 
     def save_page_to_index_reorganise(self, page: page_index):
         self.page_buffer.append(page)

@@ -147,7 +147,7 @@ class IS_Database:
         elif len(indexes) < self.db.block_size:  # index not existing
             return -1
         pointer_to_traverse = possible_page[bisect(indexes, value.index) - 1].pointer
-        if pointer_to_traverse:
+        if pointer_to_traverse is not None:
             record_from_pointer = self.db.load_record_from_overflow(pointer_to_traverse, value.index)
             while record_from_pointer.pointer and record_from_pointer < value:
                 pointer_to_traverse = record_from_pointer.pointer
@@ -155,6 +155,7 @@ class IS_Database:
             if record_from_pointer == value and not record_from_pointer.is_deleted:
                 value.pointer = record_from_pointer.pointer
                 self.db.update_record_in_overflow(value, pointer_to_traverse)
+                return -1
             else:
                 return -2
         else:
@@ -240,7 +241,7 @@ class IS_Database:
         return f'RECORD WITH KEY: {key} NOT FOUND'
 
     def view_page(self, page_no: int):
-        if page_no > self.db.reorganising_page_no:
+        if page_no >= self.db.reorganising_page_no:
             return -2
         page = [x for x in self.db.load_page_from_main(page_no)]
         empty = len([x for x in page if x.empty])
@@ -249,7 +250,7 @@ class IS_Database:
         ret_page = []
         main_ptr = 0
         while main_ptr < len(page):
-            limit = page[main_ptr + 1] if main_ptr < len(page) - 1 else 10 ** INDEX_LENGTH
+            limit = page[main_ptr + 1].index if main_ptr < len(page) - 1 else 10 ** INDEX_LENGTH
             if not page[main_ptr].is_deleted:
                 if page[main_ptr].index > 0:
                     ret_page.append(page[main_ptr])

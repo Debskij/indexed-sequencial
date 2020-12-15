@@ -24,7 +24,16 @@ def pretty_printer(big_bad_list: list):
 program = isdb(new_database)
 
 testing = open('test-file').readlines()
-for line in testing:
+def run(testing: list):
+    for line in testing:
+        parser(line)
+    while True:
+        new_line = input("Command:\t")
+        if new_line.split()[0] == 'exit':
+            break
+        parser(new_line)
+
+def parser(line: str):
     command_line = line.rstrip('\n').split(' ')
     if command_line[0] in ['add', 'update', 'delete', 'search', 'view', 'reorganise']:
         ans = -3
@@ -33,14 +42,14 @@ for line in testing:
                 command_line[1] = int(command_line[1])
             except ValueError:
                 print(f'Invalid command passed in {line}')
-                break
+                return
             ans = program.commands(command_line[0], record(command_line[1], command_line[2]))
         elif command_line[0] in ['delete', 'search', 'view'] and len(command_line) >= 2:
             try:
                 command_line[1] = int(command_line[1])
             except ValueError:
                 print(f'Invalid command passed in {line}')
-                break
+                return
             ans = program.commands(command_line[0], command_line[1])
         else:
             ans = program.commands(command_line[0])
@@ -55,3 +64,7 @@ for line in testing:
             pretty_printer(ans)
         else:
             print(ans)
+    else:
+        print('Invalid command')
+
+run(testing)
